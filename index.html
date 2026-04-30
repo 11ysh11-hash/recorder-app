@@ -8,70 +8,140 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.0/umd/lucide.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap');
-        body { font-family: 'Nanum Gothic', sans-serif; background-color: #f8fafc; }
+        body { font-family: 'Nanum Gothic', sans-serif; background-color: #f0f4f8; }
+        .recorder-shadow { box-shadow: inset 0 2px 10px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        // 선생님의 원본 코드를 브라우저가 인식할 수 있는 형태로 정리했습니다.
         const { useState, useEffect, useRef } = React;
 
+        // 데이터 정의
         const NOTE_DATA = {
-            '솔': { yPos: 40, fingers: [0, 1, 2, 3], color: 'bg-emerald-600', freq: 392.00 },
-            '라': { yPos: 33, fingers: [0, 1, 2], color: 'bg-emerald-600', freq: 440.00 },
-            '시': { yPos: 26, fingers: [0, 1], color: 'bg-emerald-600', freq: 493.88 },
-            '낮은 도': { yPos: 82, fingers: [0, 1, 2, 3, 4, 5, 6, 7], color: 'bg-blue-600', freq: 261.63 },
-            '낮은 레': { yPos: 75, fingers: [0, 1, 2, 3, 4, 5, 6], color: 'bg-blue-600', freq: 293.66 },
-            '낮은 미': { yPos: 68, fingers: [0, 1, 2, 3, 4, 5], color: 'bg-blue-600', freq: 329.63 },
-            '낮은 파': { yPos: 61, fingers: [0, 1, 2, 3, 4, 6, 7], color: 'bg-blue-600', freq: 349.23 }
+            '솔': { yPos: 40, fingers: [0, 1, 2, 3], color: 'bg-emerald-600', hex: '#059669', freq: 392.00 },
+            '라': { yPos: 33, fingers: [0, 1, 2], color: 'bg-emerald-600', hex: '#059669', freq: 440.00 },
+            '시': { yPos: 26, fingers: [0, 1], color: 'bg-emerald-600', hex: '#059669', freq: 493.88 },
+            '높은 도': { yPos: 19, fingers: [0, 2], color: 'bg-emerald-600', hex: '#059669', freq: 523.25 },
+            '높은 레': { yPos: 12, fingers: [2], color: 'bg-emerald-600', hex: '#059669', freq: 587.33 },
+            '낮은 도': { yPos: 82, fingers: [0, 1, 2, 3, 4, 5, 6, 7], color: 'bg-blue-600', hex: '#2563eb', freq: 261.63 },
+            '낮은 레': { yPos: 75, fingers: [0, 1, 2, 3, 4, 5, 6], color: 'bg-blue-600', hex: '#2563eb', freq: 293.66 },
+            '낮은 미': { yPos: 68, fingers: [0, 1, 2, 3, 4, 5], color: 'bg-blue-600', hex: '#2563eb', freq: 329.63 },
+            '낮은 파': { yPos: 61, fingers: [0, 1, 2, 3, 4, 6, 7], color: 'bg-blue-600', hex: '#2563eb', freq: 349.23 },
+            '높은 미': { yPos: 5, fingers: [0.5, 1, 2, 3, 4, 5], color: 'bg-purple-600', hex: '#9333ea', freq: 659.25 },
+            '높은 파': { yPos: -2, fingers: [0.5, 1, 2, 3, 4, 6], color: 'bg-purple-600', hex: '#9333ea', freq: 698.46 }
+        };
+
+        const SONG_DATA = {
+            'left': { title: '비행기', notes: ['시', '라', '솔', '라', '시', '시', '시'], color: 'bg-emerald-500' },
+            'right': { title: '나비야', notes: ['솔', '미', '미', '파', '레', '레', '도', '레', '미', '파', '솔', '솔', '솔'], color: 'bg-blue-500' }
         };
 
         const App = () => {
-            const [selectedNote, setSelectedNote] = useState('솔');
+            const [view, setView] = useState('home');
+            const [currentNote, setCurrentNote] = useState('솔');
+            const [isPlaying, setIsPlaying] = useState(false);
+            const [playIndex, setPlayIndex] = useState(0);
+            const audioCtxRef = useRef(null);
+
+            const initAudio = () => {
+                if (!audioCtxRef.current) {
+                    audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            };
+
+            const playSound = (freq) => {
+                initAudio();
+                const osc = audioCtxRef.current.createOscillator();
+                const gain = audioCtxRef.current.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(freq, audioCtxRef.current.currentTime);
+                gain.gain.setValueAtTime(0, audioCtxRef.current.currentTime);
+                gain.gain.linearRampToValueAtTime(0.2, audioCtxRef.current.currentTime + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtxRef.current.currentTime + 0.5);
+                osc.connect(gain);
+                gain.connect(audioCtxRef.current.destination);
+                osc.start();
+                osc.stop(audioCtxRef.current.currentTime + 0.6);
+            };
 
             return (
-                <div className="max-w-4xl mx-auto p-8">
-                    <header className="text-center mb-10">
-                        <h1 className="text-5xl font-black text-slate-800 mb-4">즐거운 리코더 교실</h1>
-                        <p className="text-xl text-slate-500 font-bold">특수학급 학생들을 위한 맞춤형 학습 도구</p>
+                <div className="max-w-5xl mx-auto p-6">
+                    <header className="text-center mb-8">
+                        <h1 className="text-4xl font-black text-slate-800 mb-2">즐거운 리코더 교실</h1>
+                        <p className="text-lg text-slate-500 font-bold">특수학급 학생들을 위한 맞춤형 학습</p>
                     </header>
 
-                    <div className="flex gap-10 bg-white p-10 rounded-[50px] shadow-2xl border-4 border-blue-50">
-                        {/* 운지법 영역 */}
-                        <div className="w-64 bg-orange-50 p-8 rounded-[40px] flex flex-col items-center border-2 border-orange-100">
-                            <div className="mb-6 flex items-center gap-4">
-                                <span className="font-bold text-slate-400">뒤</span>
-                                <div className={`w-10 h-10 rounded-full border-4 ${NOTE_DATA[selectedNote].fingers.includes(0) ? 'bg-blue-600 border-blue-800' : 'bg-white border-slate-200'}`}></div>
-                            </div>
-                            <div className="flex flex-col gap-3">
-                                {[1, 2, 3, 4, 5, 6, 7].map(f => (
-                                    <div key={f} className={`w-10 h-10 rounded-full border-4 flex items-center justify-center font-bold ${NOTE_DATA[selectedNote].fingers.includes(f) ? 'bg-blue-600 border-blue-800 text-white' : 'bg-white border-slate-200 text-slate-300'}`}>
-                                        {f}
+                    {view === 'home' ? (
+                        <div className="grid grid-cols-2 gap-6">
+                            <button onClick={() => setView('learning')} className="p-10 bg-white rounded-[40px] shadow-xl hover:scale-105 transition-all border-b-8 border-emerald-200">
+                                <div className="text-6xl mb-4">🎵</div>
+                                <div className="text-2xl font-black text-emerald-600">운지법 익히기</div>
+                            </button>
+                            <button onClick={() => setView('practice')} className="p-10 bg-white rounded-[40px] shadow-xl hover:scale-105 transition-all border-b-8 border-blue-200">
+                                <div className="text-6xl mb-4">📖</div>
+                                <div className="text-2xl font-black text-blue-600">노래 연습하기</div>
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="bg-white p-8 rounded-[50px] shadow-2xl relative border-4 border-white">
+                            <button onClick={() => setView('home')} className="absolute top-6 left-6 bg-slate-100 p-3 rounded-full hover:bg-slate-200">🏠 홈으로</button>
+                            
+                            <div className="flex gap-12 mt-10">
+                                {/* 리코더 그래픽 */}
+                                <div className="w-48 bg-orange-50 p-6 rounded-[40px] flex flex-col items-center border-2 border-orange-100 shadow-inner">
+                                    <div className="mb-4 text-xs font-bold text-orange-300">BACK</div>
+                                    <div className={`w-12 h-12 rounded-full border-4 mb-8 ${NOTE_DATA[currentNote].fingers.includes(0) ? 'bg-blue-600 border-blue-800' : 'bg-white border-slate-200'}`}></div>
+                                    <div className="flex flex-col gap-3">
+                                        {[1, 2, 3, 4, 5, 6, 7].map(f => (
+                                            <div key={f} className={`w-12 h-12 rounded-full border-4 flex items-center justify-center font-black ${NOTE_DATA[currentNote].fingers.includes(f) ? 'bg-blue-600 border-blue-800 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-200'}`}>
+                                                {f}
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
-                            <div className="mt-8 text-5xl font-black text-blue-600 bg-white px-8 py-4 rounded-3xl shadow-inner border-2 border-blue-100">
-                                {selectedNote.replace('낮은 ', '')}
-                            </div>
-                        </div>
+                                    <div className="mt-8 text-5xl font-black text-blue-600">{currentNote.replace('낮은 ', '').replace('높은 ', '')}</div>
+                                </div>
 
-                        {/* 버튼 영역 */}
-                        <div className="flex-1 grid grid-cols-2 gap-4">
-                            {Object.keys(NOTE_DATA).map(note => (
-                                <button 
-                                    key={note}
-                                    onClick={() => setSelectedNote(note)}
-                                    className={`h-24 rounded-3xl text-2xl font-bold transition-all active:scale-95 ${selectedNote === note ? 'bg-blue-600 text-white shadow-xl translate-y-1' : 'bg-slate-100 text-slate-600 hover:bg-white border-2 border-transparent hover:border-blue-200'}`}
-                                >
-                                    {note}
-                                </button>
-                            ))}
+                                {/* 조작 영역 */}
+                                <div className="flex-1">
+                                    {view === 'learning' ? (
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {Object.keys(NOTE_DATA).map(note => (
+                                                <button key={note} onClick={() => {setCurrentNote(note); playSound(NOTE_DATA[note].freq);}}
+                                                    className={`p-4 rounded-2xl font-bold text-xl transition-all ${currentNote === note ? 'bg-blue-600 text-white scale-105 shadow-lg' : 'bg-slate-50 text-slate-600 hover:bg-blue-50'}`}>
+                                                    {note}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-6">
+                                            <div className="flex gap-4 mb-4">
+                                                {Object.keys(SONG_DATA).map(id => (
+                                                    <button key={id} onClick={() => {setView(id); setPlayIndex(0);}} className={`px-6 py-3 rounded-full font-bold ${SONG_DATA[id].color} text-white`}>
+                                                        {SONG_DATA[id].title}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <div className="bg-slate-50 p-10 rounded-[30px] border-4 border-dashed border-slate-200 flex flex-wrap gap-4">
+                                                {SONG_DATA['left'].notes.map((n, i) => (
+                                                    <span key={i} className={`text-4xl font-black p-4 rounded-2xl ${playIndex === i ? 'bg-yellow-400 scale-125 shadow-xl' : 'bg-white'}`}>
+                                                        {n}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                            <button onClick={() => setPlayIndex((prev) => (prev + 1) % SONG_DATA['left'].notes.length)} className="w-full py-6 bg-blue-600 text-white text-2xl font-black rounded-3xl shadow-xl active:bg-blue-700">
+                                                다음 음표 보기 ▶
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             );
         };
